@@ -20,4 +20,22 @@ const auth = (req, res, next) => {
     }
 };
 
-module.exports = auth;
+const verify = (req) => {
+    const token = req.header('Authorization');
+
+    // Sprawdzenie, czy token istnieje
+    if (!token) {
+        return false;
+    }
+
+    try {
+        // Weryfikacja tokenu
+        const decodedToken = token.replace('Bearer ', '');
+        return req.user = jwt.verify(decodedToken, process.env.JWTPRIVATEKEY);
+    } catch (err) {
+        return null;
+    }
+}
+
+exports.auth = auth;
+exports.verify = verify;

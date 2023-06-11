@@ -1,6 +1,6 @@
 const router = require("express").Router()
 const { User, validate } = require("../models/user")
-const auth = require("../middleware/auth")
+const { auth, verify } = require("../middleware/auth")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const { Recipe } = require("../models/recipe")
@@ -109,8 +109,8 @@ router.delete('/user/profile', auth, async (req, res) => {
     try {
         const userId = req.user._id;
 
-        await Recipe.deleteMany({ userId });
-        await Comment.deleteMany({ userId });
+        await Recipe.deleteMany({ createdBy: userId });
+        await Comment.deleteMany({ createdBy: userId });
         const deletedUser = await User.findByIdAndDelete(userId);
 
         if (!deletedUser) {

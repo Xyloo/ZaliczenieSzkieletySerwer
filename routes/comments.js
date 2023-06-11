@@ -1,7 +1,7 @@
 const router = require("express").Router()
 const { Recipe } = require("../models/recipe")
 const { Comment } = require("../models/comment")
-const auth = require("../middleware/auth")
+const { auth, verify } = require("../middleware/auth")
 
 router.post('/recipes/:id/comments', auth, async (req, res) => {
     try {
