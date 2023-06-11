@@ -1,6 +1,6 @@
 const router = require("express").Router()
 const { User, validate } = require("../models/user")
-const { auth, verify } = require("../middleware/auth")
+const { auth } = require("../middleware/auth")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const { Recipe } = require("../models/recipe")
@@ -71,7 +71,7 @@ router.get('/user/profile', auth, async (req, res) => {
     try {
         const userId = req.user._id;
 
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).populate('favorites');
         if (!user) {
             return res.status(404).json({ error: 'User not found.' });
         }

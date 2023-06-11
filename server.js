@@ -6,6 +6,7 @@ const connectDB = require('./db');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
+const path = require('path');
 connectDB()
 
 const privateKey = fs.readFileSync('./localhost+2-key.pem', 'utf8');
@@ -15,6 +16,7 @@ const credentials = { key: privateKey, cert: certificate };
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/images', express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 8080;
 

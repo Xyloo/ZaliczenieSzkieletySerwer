@@ -1,30 +1,27 @@
 const router = require("express").Router()
 const { Recipe } = require("../models/recipe")
 const { Comment } = require("../models/comment")
-const { auth, verify } = require("../middleware/auth")
+const { auth } = require("../middleware/auth")
+const { checkCommentAccess, checkRecipeAccess, verify} = require("../utility/util")
 
 router.post('/recipes/:id/comments', auth, async (req, res) => {
     try {
         const { content } = req.body;
         const userId = req.user._id;
+        const recipeId = req.params.id;
 
-        const recipe = await Recipe.findById(req.params.id);
-        if (!recipe) {
-            return res.status(404).json({ error: 'Recipe not found.' });
-        }
-
-        // Sprawdzenie dostępu do przepisu
-        if (recipe.userId.toString() !== userId.toString() && recipe.visibility !== 'public') {
-            return res.status(403).json({ error: 'Unauthorized to add comment to this recipe.' });
-        }
+        await checkRecipeAccess(recipeId, userId);
 
         const newComment = new Comment({
             content,
-            userId,
-            recipeId: recipe._id
+            recipeId,
+            createdBy: userId,
         });
 
         const comment = await newComment.save();
+        const recipe = await Recipe.findById(recipeId);
+        recipe.comments.push(comment._id);
+        await recipe.save();
         res.status(201).json(comment);
     } catch (err) {
         console.error('Błąd dodawania komentarza:', err.message);
@@ -32,21 +29,16 @@ router.post('/recipes/:id/comments', auth, async (req, res) => {
     }
 });
 
-router.get('/recipes/:id/comments', auth, async (req, res) => {
+router.get('/recipes/:id/comments', async (req, res) => {
     try {
-        const userId = req.user._id;
+        const userId = verify(req);
+        const recipeId = req.params.id;
 
-        const recipe = await Recipe.findById(req.params.id);
-        if (!recipe) {
-            return res.status(404).json({ error: 'Recipe not found.' });
-        }
+        await checkRecipeAccess(recipeId, userId);
 
-        // Sprawdzenie dostępu do przepisu
-        if (recipe.visibility !== 'public' && recipe.userId.toString() !== userId.toString()) {
-            return res.status(403).json({ error: 'Unauthorized to access comments for this recipe.' });
-        }
-
-        const comments = await Comment.find({ recipeId: recipe._id });
+        const comments = await Comment.find({ recipeId: recipeId }).populate({
+            path: 'createdBy', select: 'firstName lastName'
+        });
         res.json(comments);
     } catch (err) {
         console.error('Błąd pobierania komentarzy:', err.message);
@@ -58,16 +50,11 @@ router.put('/comments/:id', auth, async (req, res) => {
     try {
         const { content } = req.body;
         const userId = req.user._id;
+        const commentId = req.params.id;
 
-        const comment = await Comment.findById(req.params.id);
-        if (!comment) {
-            return res.status(404).json({ error: 'Comment not found.' });
-        }
+        await checkCommentAccess(commentId, userId)
 
-        // Sprawdzenie, czy użytkownik ma uprawnienia do edycji komentarza
-        if (comment.userId.toString() !== userId.toString()) {
-            return res.status(403).json({ error: 'Unauthorized to update this comment.' });
-        }
+        const comment = await Comment.findById(commentId);
 
         comment.content = content;
         const updatedComment = await comment.save();
@@ -81,24 +68,27 @@ router.put('/comments/:id', auth, async (req, res) => {
 router.delete('/comments/:id', auth, async (req, res) => {
     try {
         const userId = req.user._id;
+        const commentId = req.params.id;
 
-        const comment = await Comment.findById(req.params.id);
-        if (!comment) {
-            return res.status(404).json({ error: 'Comment not found.' });
+        await checkCommentAccess(commentId, userId);
+
+        // Use the deleteOne() method to remove the comment
+        const result = await Comment.deleteOne({ _id: commentId, createdBy: userId });
+
+        // Check if the comment was deleted
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: 'Comment not found' });
         }
-
-        // Sprawdzenie, czy użytkownik ma uprawnienia do usunięcia komentarza
-        if (comment.userId.toString() !== userId.toString()) {
-            return res.status(403).json({ error: 'Unauthorized to delete this comment.' });
-        }
-
-        await comment.remove();
+        const recipe = await Recipe.findOne({ comments: commentId });
+        recipe.comments.pull(commentId);
+        await recipe.save();
         res.sendStatus(204);
     } catch (err) {
-        console.error('Błąd usuwania komentarza:', err.message);
+        console.error('Error deleting comment:', err.message);
         res.status(400).json({ error: err.message });
     }
 });
+
 
 module.exports = router
 
